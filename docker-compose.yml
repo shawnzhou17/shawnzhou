@@ -1,0 +1,56 @@
+version: '3.9'
+
+services:
+  # ─── PostgreSQL with pgvector ───────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: askshawn_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: askshawn
+      POSTGRES_PASSWORD: askshawn
+      POSTGRES_DB: askshawn
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U askshawn"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── FastAPI Backend ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: askshawn_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://askshawn:askshawn@db:5432/askshawn
+      SYNC_DATABASE_URL: postgresql://askshawn:askshawn@db:5432/askshawn
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
+  # ─── React Frontend ─────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: askshawn_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
